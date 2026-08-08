@@ -86,12 +86,12 @@ export default function Inicio() {
           id="bio"
           value={bio}
           onChange={(e) => setBio(e.target.value)}
-          placeholder={'Hamburguesas artesanales\nYopal, Casanare'}
+          placeholder={'Se toma de la descripcion de tu base en Notion'}
         />
       </div>
 
       <div className="campo">
-        <label htmlFor="avatar">Enlace de la foto de perfil</label>
+        <label htmlFor="avatar">Foto de perfil (opcional)</label>
         <input
           id="avatar"
           value={avatar}
@@ -99,9 +99,9 @@ export default function Inicio() {
           placeholder="https://..."
         />
         <p className="ayuda">
-          Tiene que ser el enlace directo a un archivo de imagen, terminado en .png o .jpg. El
-          enlace de un perfil de Instagram no sirve. Lo mas practico: sube los logos a la carpeta
-          public/logos del repositorio y usa una direccion tipo tu-proyecto.vercel.app/logos/marca.png
+          Dejalo vacio: el widget toma el icono que tenga tu calendario en Notion. Para cambiar el
+          logo, cambia el icono de la base de datos. Solo llena este campo si quieres usar otra
+          imagen distinta.
         </p>
       </div>
 

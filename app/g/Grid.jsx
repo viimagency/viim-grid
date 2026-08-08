@@ -50,6 +50,7 @@ export default function Grid({ config }) {
   const [tema, setTema] = useState(config.tema === 'claro' ? 'claro' : 'oscuro')
   const [avatarRoto, setAvatarRoto] = useState(false)
   const [info, setInfo] = useState({ total: 0, conImagen: 0 })
+  const [perfilNotion, setPerfilNotion] = useState(null)
   const [ratio, setRatio] = useState('4-5')
   const [reordenar, setReordenar] = useState(false)
   const [guardado, setGuardado] = useState('')
@@ -72,6 +73,7 @@ export default function Grid({ config }) {
       if (!res.ok) throw new Error(json.error || 'No se pudo cargar.')
       setPosts(json.posts)
       setInfo({ total: json.total ?? json.posts.length, conImagen: json.conImagen ?? 0 })
+      setPerfilNotion(json.perfil || null)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -157,23 +159,35 @@ export default function Grid({ config }) {
   const mediaPost = post?.media?.length ? post.media : post?.externalLink ? [{ url: post.externalLink, isVideo: false }] : []
 
   const iniciales = (handle || 'v').replace('@', '').slice(0, 2).toUpperCase()
+  const logo = !avatarRoto ? avatar || perfilNotion?.logo || '' : ''
+  const emoji = !logo ? perfilNotion?.emoji || '' : ''
+  const textoBio = bio || perfilNotion?.descripcion || ''
+
+  const Foto = ({ tam }) =>
+    logo ? (
+      <img
+        src={logo}
+        alt=""
+        className="avatar"
+        style={tam ? { width: tam, height: tam } : undefined}
+        onError={() => setAvatarRoto(true)}
+      />
+    ) : (
+      <div
+        className="avatar avatar-vacio"
+        style={tam ? { width: tam, height: tam, fontSize: tam * 0.42 } : undefined}
+      >
+        {emoji || iniciales}
+      </div>
+    )
 
   return (
     <div className="marco">
       <header className="perfil">
-        {avatar && !avatarRoto ? (
-          <img
-            src={avatar}
-            alt=""
-            className="avatar"
-            onError={() => setAvatarRoto(true)}
-          />
-        ) : (
-          <div className="avatar avatar-vacio">{iniciales}</div>
-        )}
+        <Foto />
         <div className="perfil-datos">
           <p className="handle">@{(handle || 'tu_cuenta').replace('@', '')}</p>
-          {bio && <p className="bio">{bio}</p>}
+          {textoBio && <p className="bio">{textoBio}</p>}
         </div>
       </header>
 
@@ -312,13 +326,7 @@ export default function Grid({ config }) {
           </button>
           <article className="post" onClick={(e) => e.stopPropagation()}>
             <div className="post-top">
-              {avatar && !avatarRoto ? (
-                <img src={avatar} alt="" onError={() => setAvatarRoto(true)} />
-              ) : (
-                <div className="avatar avatar-vacio" style={{ width: 32, height: 32, fontSize: 12 }}>
-                  {iniciales}
-                </div>
-              )}
+              <Foto tam={32} />
               <div>
                 <div className="post-handle">{(handle || 'tu_cuenta').replace('@', '')}</div>
                 {post.musica && <div className="post-musica">&#9834; {post.musica}</div>}

@@ -52,6 +52,24 @@ const selectOf = (p) => {
   return ''
 }
 
+// Del icono de Notion sacamos el logo del perfil: puede ser imagen o emoji.
+function perfilDe(obj) {
+  if (!obj) return null
+  const icon = obj.icon
+  let logo = null
+  let emoji = null
+  if (icon?.type === 'emoji') emoji = icon.emoji
+  else if (icon?.type === 'external') logo = icon.external?.url || null
+  else if (icon?.type === 'file') logo = icon.file?.url || null
+
+  const desc = Array.isArray(obj.description)
+    ? obj.description.map((t) => t.plain_text).join('')
+    : ''
+  const titulo = Array.isArray(obj.title) ? obj.title.map((t) => t.plain_text).join('') : ''
+
+  return { logo, emoji, descripcion: desc, titulo }
+}
+
 const cabeceras = (token, version) => ({
   Authorization: `Bearer ${token}`,
   'Notion-Version': version,
@@ -94,8 +112,11 @@ async function consultar(id, token, profundidad = 0) {
     cache: 'no-store',
   })
 
+  let perfil = null
+
   if (meta.ok) {
     const info = await meta.json()
+    perfil = perfilDe(info)
     const fuentes = info.data_sources || []
     if (fuentes.length) {
       const todas = []
@@ -108,7 +129,7 @@ async function consultar(id, token, profundidad = 0) {
         if (r.error) return r
         todas.push(...r.filas)
       }
-      return { filas: todas }
+      return { filas: todas, perfil }
     }
   }
 
@@ -117,18 +138,33 @@ async function consultar(id, token, profundidad = 0) {
     token,
     V_VIEJA
   )
-  if (!clasica.error) return clasica
+  if (!clasica.error) return { ...clasica, perfil }
 
   // El id es de una pagina: buscamos las bases de datos que tiene adentro.
   if (profundidad < 2) {
     const hijos = await buscarBasesAdentro(id, token)
     if (hijos.length) {
       const todas = []
+      let perfilHijo = null
       for (const hijo of hijos) {
         const r = await consultar(hijo, token, profundidad + 1)
-        if (!r.error) todas.push(...r.filas)
+        if (!r.error) {
+          todas.push(...r.filas)
+          if (!perfilHijo && (r.perfil?.logo || r.perfil?.emoji)) perfilHijo = r.perfil
+        }
       }
-      if (todas.length || hijos.length) return { filas: todas }
+      // Si la base no tiene icono, usamos el de la pagina que la contiene.
+      if (!perfilHijo?.logo && !perfilHijo?.emoji) {
+        const pag = await fetch(`https://api.notion.com/v1/pages/${id}`, {
+          headers: cabeceras(token, V_VIEJA),
+          cache: 'no-store',
+        })
+        if (pag.ok) {
+          const p = perfilDe(await pag.json())
+          if (p?.logo || p?.emoji) perfilHijo = p
+        }
+      }
+      if (todas.length || hijos.length) return { filas: todas, perfil: perfilHijo }
     }
   }
 
@@ -228,7 +264,7 @@ export async function GET(request) {
     const conImagen = posts.filter((p) => p.media.length || p.externalLink).length
 
     return Response.json(
-      { posts, total, conImagen, actualizado: new Date().toISOString() },
+      { posts, total, conImagen, perfil: r.perfil || null, actualizado: new Date().toISOString() },
       { headers: { 'Cache-Control': 'no-store' } }
     )
   } catch (e) {
