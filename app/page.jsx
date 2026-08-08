@@ -32,7 +32,7 @@ export default function Inicio() {
     if (bio) params.set('bio', bio)
     if (avatar) params.set('avatar', avatar)
     if (estado) params.set('estado', estado)
-    if (oscuro) params.set('tema', 'oscuro')
+    params.set('tema', oscuro ? 'oscuro' : 'claro')
     return `${base}/g?${params}`
   }, [db, handle, bio, avatar, estado, oscuro])
 
@@ -126,7 +126,10 @@ export default function Inicio() {
             Claro
           </button>
         </div>
-        <p className="ayuda">Oscuro combina con Notion en modo noche.</p>
+        <p className="ayuda">
+          Fija el tema del widget. Si no generas el enlace de nuevo, el widget sigue el modo de tu
+          computador por su cuenta.
+        </p>
       </div>
 
       {enlace && (

@@ -47,7 +47,7 @@ export default function Grid({ config }) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
   const [tab, setTab] = useState('grid')
-  const [tema, setTema] = useState(config.tema === 'oscuro' ? 'oscuro' : 'claro')
+  const [tema, setTema] = useState(config.tema === 'claro' ? 'claro' : 'oscuro')
   const [avatarRoto, setAvatarRoto] = useState(false)
   const [info, setInfo] = useState({ total: 0, conImagen: 0 })
   const [ratio, setRatio] = useState('4-5')
@@ -83,9 +83,30 @@ export default function Grid({ config }) {
     if (db) cargar()
   }, [db, cargar])
 
+  // Si el enlace no dice nada, seguimos el modo del sistema y recordamos
+  // el ultimo cambio manual del usuario.
+  useEffect(() => {
+    if (config.tema) return
+    let guardado = null
+    try {
+      guardado = window.localStorage.getItem('viim-grid-tema')
+    } catch {}
+    if (guardado === 'claro' || guardado === 'oscuro') {
+      setTema(guardado)
+      return
+    }
+    const claro = window.matchMedia('(prefers-color-scheme: light)').matches
+    setTema(claro ? 'claro' : 'oscuro')
+  }, [config.tema])
+
   useEffect(() => {
     document.documentElement.dataset.tema = tema
-  }, [tema])
+    document.documentElement.style.colorScheme = tema === 'oscuro' ? 'dark' : 'light'
+    if (config.tema) return
+    try {
+      window.localStorage.setItem('viim-grid-tema', tema)
+    } catch {}
+  }, [tema, config.tema])
 
   useEffect(() => {
     if (!abierto) return

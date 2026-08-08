@@ -85,9 +85,10 @@ async function traerTodo(url, token, version) {
   return { filas }
 }
 
-// Notion tiene dos formas de consultar una base segun su antiguedad.
-// Probamos la nueva (fuentes de datos) y si no aplica, la clasica.
-async function consultar(id, token) {
+// Notion tiene dos formas de consultar una base segun su antiguedad,
+// y ademas la gente suele pegar el enlace de la pagina en vez del de la base.
+// Esta funcion resuelve los tres casos.
+async function consultar(id, token, profundidad = 0) {
   const meta = await fetch(`https://api.notion.com/v1/databases/${id}`, {
     headers: cabeceras(token, V_NUEVA),
     cache: 'no-store',
@@ -118,17 +119,53 @@ async function consultar(id, token) {
   )
   if (!clasica.error) return clasica
 
+  // El id es de una pagina: buscamos las bases de datos que tiene adentro.
+  if (profundidad < 2) {
+    const hijos = await buscarBasesAdentro(id, token)
+    if (hijos.length) {
+      const todas = []
+      for (const hijo of hijos) {
+        const r = await consultar(hijo, token, profundidad + 1)
+        if (!r.error) todas.push(...r.filas)
+      }
+      if (todas.length || hijos.length) return { filas: todas }
+    }
+  }
+
   if (!meta.ok) {
     const msg = await mensajeDe(meta)
     return {
       error:
         meta.status === 404
-          ? 'Notion no encuentra esa base. Puede que el enlace sea de una pagina y no de la base de datos, o que falte darle acceso a la integracion desde ••• > Conexiones.'
+          ? 'Notion no encuentra nada en ese enlace. Revisa que le hayas dado acceso a la integracion desde ••• > Conexiones.'
           : msg,
       estado: meta.status,
     }
   }
   return clasica
+}
+
+// Recorre los bloques de una pagina y devuelve los ids de las bases que contiene.
+async function buscarBasesAdentro(id, token) {
+  const encontradas = []
+  let cursor
+  try {
+    do {
+      const url = new URL(`https://api.notion.com/v1/blocks/${id}/children`)
+      url.searchParams.set('page_size', '100')
+      if (cursor) url.searchParams.set('start_cursor', cursor)
+      const res = await fetch(url, { headers: cabeceras(token, V_VIEJA), cache: 'no-store' })
+      if (!res.ok) return encontradas
+      const json = await res.json()
+      for (const b of json.results) {
+        if (b.type === 'child_database') encontradas.push(b.id)
+      }
+      cursor = json.has_more ? json.next_cursor : undefined
+    } while (cursor)
+  } catch {
+    return encontradas
+  }
+  return encontradas
 }
 
 export async function GET(request) {
