@@ -219,7 +219,9 @@ button { font-family: inherit; cursor: pointer; }
 
 .celda-vacia span {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 8px;
+  line-height: 1.5;
+  opacity: 0.55;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sub);

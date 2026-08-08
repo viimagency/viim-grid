@@ -312,7 +312,6 @@ export default function Grid({ config }) {
                 {primera ? <Media item={primera} /> : <span>{p.titulo || 'Sin imagen'}</span>}
                 {esCarrusel(p) && <IconoCarrusel />}
                 {!esCarrusel(p) && esReel(p) && <IconoReel />}
-                {p.estado && !/public/i.test(p.estado) && <span className="borrador">{p.estado}</span>}
               </button>
             )
           })}

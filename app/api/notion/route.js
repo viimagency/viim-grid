@@ -71,6 +71,8 @@ function perfilDe(obj) {
   if (icon?.type === 'emoji') emoji = icon.emoji
   else if (icon?.type === 'external') logo = icon.external?.url || null
   else if (icon?.type === 'file') logo = icon.file?.url || null
+  // Notion usa rutas internas para sus iconos de plantilla; no sirven como logo.
+  if (logo && !/^https?:\/\//.test(logo)) logo = null
 
   const desc = Array.isArray(obj.description)
     ? obj.description.map((t) => t.plain_text).join('')
@@ -330,6 +332,19 @@ export async function GET(request) {
 
     if (proyecto) posts = posts.filter((p) => p.relaciones.includes(proyecto))
 
+    // El logo del cliente sale del icono de la pagina del proyecto.
+    let perfil = r.perfil || null
+    if (proyecto) {
+      const pg = await fetch(`https://api.notion.com/v1/pages/${proyecto}`, {
+        headers: cabeceras(token, V_VIEJA),
+        cache: 'no-store',
+      })
+      if (pg.ok) {
+        const p = perfilDe(await pg.json())
+        if (p?.logo || p?.emoji) perfil = { ...(perfil || {}), ...p }
+      }
+    }
+
     const total = posts.length
     if (estado) posts = posts.filter((p) => norm(p.estado) === norm(estado))
     if (cliente) posts = posts.filter((p) => norm(p.cliente) === norm(cliente))
@@ -341,7 +356,7 @@ export async function GET(request) {
     const conImagen = posts.filter((p) => p.media.length || p.externalLink).length
 
     return Response.json(
-      { posts, total, conImagen, perfil: r.perfil || null, actualizado: new Date().toISOString() },
+      { posts, total, conImagen, perfil, actualizado: new Date().toISOString() },
       { headers: { 'Cache-Control': 'no-store' } }
     )
   } catch (e) {
