@@ -1,0 +1,7 @@
+Sube aqui los logos de tus clientes (png o jpg) desde GitHub:
+Add file > Upload files, y arrastralos a esta carpeta.
+
+Despues quedan disponibles en una direccion permanente, por ejemplo:
+https://viim-grid.vercel.app/logos/asistir.png
+
+Esa direccion es la que pegas en el campo "Enlace de la foto de perfil".

@@ -10,6 +10,7 @@ export default function PaginaGrid({ searchParams }) {
     avatar: searchParams?.avatar || '',
     estado: searchParams?.estado || '',
     cliente: searchParams?.cliente || '',
+    tema: searchParams?.tema || '',
   }
   return <Grid config={config} />
 }

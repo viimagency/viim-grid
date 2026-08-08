@@ -1,15 +1,11 @@
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const NOTION_VERSION = '2022-06-28'
+const V_NUEVA = '2025-09-03'
+const V_VIEJA = '2022-06-28'
 
-// Busca una propiedad por varios nombres posibles (sin importar mayusculas/acentos)
 const norm = (s) =>
-  s
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 
 function pick(props, names, types) {
   const wanted = names.map(norm)
@@ -18,7 +14,6 @@ function pick(props, names, types) {
       if (!types || types.includes(props[key].type)) return props[key]
     }
   }
-  // Segundo intento: cualquier propiedad del tipo pedido
   if (types) {
     for (const key of Object.keys(props)) {
       if (types.includes(props[key].type)) return props[key]
@@ -32,9 +27,7 @@ const plain = (p) =>
 
 const titleOf = (props) => {
   for (const key of Object.keys(props)) {
-    if (props[key].type === 'title') {
-      return props[key].title.map((t) => t.plain_text).join('')
-    }
+    if (props[key].type === 'title') return props[key].title.map((t) => t.plain_text).join('')
   }
   return ''
 }
@@ -46,8 +39,7 @@ function filesOf(p) {
       const url = f.type === 'external' ? f.external.url : f.file?.url
       if (!url) return null
       const clean = url.split('?')[0].toLowerCase()
-      const isVideo = /\.(mp4|mov|webm|m4v)$/.test(clean)
-      return { url, isVideo, name: f.name || '' }
+      return { url, isVideo: /\.(mp4|mov|webm|m4v)$/.test(clean), name: f.name || '' }
     })
     .filter(Boolean)
 }
@@ -60,13 +52,89 @@ const selectOf = (p) => {
   return ''
 }
 
+const cabeceras = (token, version) => ({
+  Authorization: `Bearer ${token}`,
+  'Notion-Version': version,
+  'Content-Type': 'application/json',
+})
+
+async function mensajeDe(res) {
+  try {
+    const j = await res.json()
+    return j.message || j.code || `Notion respondio ${res.status}.`
+  } catch {
+    return `Notion respondio ${res.status}.`
+  }
+}
+
+async function traerTodo(url, token, version) {
+  const filas = []
+  let cursor
+  do {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: cabeceras(token, version),
+      body: JSON.stringify({ page_size: 100, start_cursor: cursor }),
+      cache: 'no-store',
+    })
+    if (!res.ok) return { error: await mensajeDe(res), estado: res.status }
+    const json = await res.json()
+    filas.push(...json.results)
+    cursor = json.has_more ? json.next_cursor : undefined
+  } while (cursor)
+  return { filas }
+}
+
+// Notion tiene dos formas de consultar una base segun su antiguedad.
+// Probamos la nueva (fuentes de datos) y si no aplica, la clasica.
+async function consultar(id, token) {
+  const meta = await fetch(`https://api.notion.com/v1/databases/${id}`, {
+    headers: cabeceras(token, V_NUEVA),
+    cache: 'no-store',
+  })
+
+  if (meta.ok) {
+    const info = await meta.json()
+    const fuentes = info.data_sources || []
+    if (fuentes.length) {
+      const todas = []
+      for (const f of fuentes) {
+        const r = await traerTodo(
+          `https://api.notion.com/v1/data_sources/${f.id}/query`,
+          token,
+          V_NUEVA
+        )
+        if (r.error) return r
+        todas.push(...r.filas)
+      }
+      return { filas: todas }
+    }
+  }
+
+  const clasica = await traerTodo(
+    `https://api.notion.com/v1/databases/${id}/query`,
+    token,
+    V_VIEJA
+  )
+  if (!clasica.error) return clasica
+
+  if (!meta.ok) {
+    const msg = await mensajeDe(meta)
+    return {
+      error:
+        meta.status === 404
+          ? 'Notion no encuentra esa base. Puede que el enlace sea de una pagina y no de la base de datos, o que falte darle acceso a la integracion desde ••• > Conexiones.'
+          : msg,
+      estado: meta.status,
+    }
+  }
+  return clasica
+}
+
 export async function GET(request) {
   const token = process.env.NOTION_TOKEN
   if (!token) {
-    return Response.json(
-      { error: 'Falta la variable NOTION_TOKEN en el proyecto.' },
-      { status: 500 }
-    )
+    return Response.json({ error: 'Falta la variable NOTION_TOKEN en el proyecto.' }, { status: 500 })
   }
 
   const { searchParams } = new URL(request.url)
@@ -77,42 +145,19 @@ export async function GET(request) {
   const cliente = searchParams.get('cliente') || ''
 
   try {
-    const results = []
-    let cursor
-    do {
-      const res = await fetch(`https://api.notion.com/v1/databases/${db}/query`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Notion-Version': NOTION_VERSION,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ page_size: 100, start_cursor: cursor }),
-        cache: 'no-store',
-      })
-      if (!res.ok) {
-        const detail = await res.text()
-        return Response.json(
-          {
-            error:
-              res.status === 404
-                ? 'Notion no encuentra esa base de datos. Revisa que la hayas conectado a la integracion desde el menu ••• > Conexiones.'
-                : `Notion respondio ${res.status}.`,
-            detail,
-          },
-          { status: res.status }
-        )
-      }
-      const json = await res.json()
-      results.push(...json.results)
-      cursor = json.has_more ? json.next_cursor : undefined
-    } while (cursor)
+    const r = await consultar(db, token)
+    if (r.error) return Response.json({ error: r.error }, { status: r.estado || 400 })
 
-    let posts = results.map((page) => {
+    let posts = r.filas.map((page) => {
       const props = page.properties || {}
-      const media = filesOf(pick(props, ['Imagen', 'Media', 'Archivo', 'Archivos', 'Attachment', 'Adjunto', 'Foto'], ['files']))
+      const media = filesOf(
+        pick(
+          props,
+          ['Imagen', 'Imagenes', 'Media', 'Archivo', 'Archivos', 'Attachment', 'Adjunto', 'Foto', 'Pieza'],
+          ['files']
+        )
+      )
       const linkProp = pick(props, ['Link', 'URL', 'Enlace', 'Canva'], ['url'])
-      const externalLink = linkProp?.url || ''
       const fechaProp = pick(props, ['Fecha', 'Publicacion', 'Date', 'Fecha de publicacion'], ['date'])
       const ordenProp = pick(props, ['Orden', 'Order', 'Posicion'], ['number'])
       const likesProp = pick(props, ['Likes', 'Me gusta'], ['number'])
@@ -130,27 +175,26 @@ export async function GET(request) {
         orden: ordenProp?.number ?? null,
         likes: likesProp?.number ?? null,
         media,
-        externalLink,
-        tieneOrden: !!ordenProp,
+        externalLink: linkProp?.url || '',
         notionUrl: page.url,
       }
     })
 
+    const total = posts.length
     if (estado) posts = posts.filter((p) => norm(p.estado) === norm(estado))
     if (cliente) posts = posts.filter((p) => norm(p.cliente) === norm(cliente))
 
     const conOrden = posts.filter((p) => p.orden !== null)
-    if (conOrden.length === posts.length && posts.length > 0) {
-      posts.sort((a, b) => a.orden - b.orden)
-    } else {
-      posts.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))
-    }
+    if (conOrden.length === posts.length && posts.length > 0) posts.sort((a, b) => a.orden - b.orden)
+    else posts.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))
+
+    const conImagen = posts.filter((p) => p.media.length || p.externalLink).length
 
     return Response.json(
-      { posts, actualizado: new Date().toISOString() },
+      { posts, total, conImagen, actualizado: new Date().toISOString() },
       { headers: { 'Cache-Control': 'no-store' } }
     )
   } catch (e) {
-    return Response.json({ error: 'No se pudo leer la base de datos.', detail: String(e) }, { status: 500 })
+    return Response.json({ error: `No se pudo leer la base de datos. ${String(e)}` }, { status: 500 })
   }
 }

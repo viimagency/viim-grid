@@ -47,7 +47,9 @@ export default function Grid({ config }) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
   const [tab, setTab] = useState('grid')
-  const [tema, setTema] = useState('claro')
+  const [tema, setTema] = useState(config.tema === 'oscuro' ? 'oscuro' : 'claro')
+  const [avatarRoto, setAvatarRoto] = useState(false)
+  const [info, setInfo] = useState({ total: 0, conImagen: 0 })
   const [ratio, setRatio] = useState('4-5')
   const [reordenar, setReordenar] = useState(false)
   const [guardado, setGuardado] = useState('')
@@ -69,6 +71,7 @@ export default function Grid({ config }) {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'No se pudo cargar.')
       setPosts(json.posts)
+      setInfo({ total: json.total ?? json.posts.length, conImagen: json.conImagen ?? 0 })
     } catch (e) {
       setError(e.message)
     } finally {
@@ -137,8 +140,13 @@ export default function Grid({ config }) {
   return (
     <div className="marco">
       <header className="perfil">
-        {avatar ? (
-          <img src={avatar} alt="" className="avatar" />
+        {avatar && !avatarRoto ? (
+          <img
+            src={avatar}
+            alt=""
+            className="avatar"
+            onError={() => setAvatarRoto(true)}
+          />
         ) : (
           <div className="avatar avatar-vacio">{iniciales}</div>
         )}
@@ -214,11 +222,19 @@ export default function Grid({ config }) {
 
       {!cargando && !error && db && visibles.length === 0 && (
         <div className="aviso">
-          <h3>Todavia no hay nada</h3>
-          <p>
-            Agrega una fila en tu base de datos, sube una imagen al campo <code>Imagen</code> y
-            presiona Actualizar.
-          </p>
+          <h3>{info.total > 0 ? 'Falta la columna de imagenes' : 'Todavia no hay nada'}</h3>
+          {info.total > 0 ? (
+            <p>
+              Encontre {info.total} publicaciones en tu base, pero {estado ? 'ninguna con ese estado' : 'ninguna llego con imagen'}.
+              Revisa que exista una columna de tipo Archivos y elementos multimedia llamada{' '}
+              <code>Imagen</code> y que las piezas esten subidas ahi.
+            </p>
+          ) : (
+            <p>
+              Agrega una fila en tu base de datos, sube una imagen al campo <code>Imagen</code> y
+              presiona Actualizar.
+            </p>
+          )}
         </div>
       )}
 
@@ -275,7 +291,13 @@ export default function Grid({ config }) {
           </button>
           <article className="post" onClick={(e) => e.stopPropagation()}>
             <div className="post-top">
-              {avatar ? <img src={avatar} alt="" /> : <div className="avatar avatar-vacio" style={{ width: 32, height: 32, fontSize: 12 }}>{iniciales}</div>}
+              {avatar && !avatarRoto ? (
+                <img src={avatar} alt="" onError={() => setAvatarRoto(true)} />
+              ) : (
+                <div className="avatar avatar-vacio" style={{ width: 32, height: 32, fontSize: 12 }}>
+                  {iniciales}
+                </div>
+              )}
               <div>
                 <div className="post-handle">{(handle || 'tu_cuenta').replace('@', '')}</div>
                 {post.musica && <div className="post-musica">&#9834; {post.musica}</div>}

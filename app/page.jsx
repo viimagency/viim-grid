@@ -19,6 +19,7 @@ export default function Inicio() {
   const [bio, setBio] = useState('')
   const [avatar, setAvatar] = useState('')
   const [estado, setEstado] = useState('')
+  const [oscuro, setOscuro] = useState(true)
   const [copiado, setCopiado] = useState(false)
 
   const db = useMemo(() => sacarId(url), [url])
@@ -31,8 +32,9 @@ export default function Inicio() {
     if (bio) params.set('bio', bio)
     if (avatar) params.set('avatar', avatar)
     if (estado) params.set('estado', estado)
+    if (oscuro) params.set('tema', 'oscuro')
     return `${base}/g?${params}`
-  }, [db, handle, bio, avatar, estado])
+  }, [db, handle, bio, avatar, estado, oscuro])
 
   async function copiar() {
     try {
@@ -96,7 +98,11 @@ export default function Inicio() {
           onChange={(e) => setAvatar(e.target.value)}
           placeholder="https://..."
         />
-        <p className="ayuda">Opcional. Si lo dejas vacio se muestran las iniciales.</p>
+        <p className="ayuda">
+          Tiene que ser el enlace directo a un archivo de imagen, terminado en .png o .jpg. El
+          enlace de un perfil de Instagram no sirve. Lo mas practico: sube los logos a la carpeta
+          public/logos del repositorio y usa una direccion tipo tu-proyecto.vercel.app/logos/marca.png
+        </p>
       </div>
 
       <div className="campo">
@@ -108,6 +114,19 @@ export default function Inicio() {
           placeholder="Aprobado"
         />
         <p className="ayuda">Opcional. Util para enseñarle al cliente solo lo ya aprobado.</p>
+      </div>
+
+      <div className="campo">
+        <label>Tema</label>
+        <div className="acciones">
+          <button className="btn" data-activo={oscuro} onClick={() => setOscuro(true)}>
+            Oscuro
+          </button>
+          <button className="btn" data-activo={!oscuro} onClick={() => setOscuro(false)}>
+            Claro
+          </button>
+        </div>
+        <p className="ayuda">Oscuro combina con Notion en modo noche.</p>
       </div>
 
       {enlace && (
