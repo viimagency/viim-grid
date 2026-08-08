@@ -44,6 +44,16 @@ function filesOf(p) {
     .filter(Boolean)
 }
 
+// Ids de las paginas relacionadas, para filtrar por proyecto o cliente.
+function relacionesDe(props) {
+  const ids = []
+  for (const key of Object.keys(props)) {
+    const p = props[key]
+    if (p.type === 'relation') for (const r of p.relation || []) ids.push(String(r.id).replace(/-/g, ''))
+  }
+  return ids
+}
+
 const selectOf = (p) => {
   if (!p) return ''
   if (p.type === 'select') return p.select?.name || ''
@@ -140,6 +150,36 @@ async function consultar(id, token, profundidad = 0) {
   )
   if (!clasica.error) return { ...clasica, perfil }
 
+  // El id puede ser directamente el de una fuente de datos.
+  const directa = await traerTodo(
+    `https://api.notion.com/v1/data_sources/${id}/query`,
+    token,
+    V_NUEVA
+  )
+  if (!directa.error) {
+    const df = await fetch(`https://api.notion.com/v1/data_sources/${id}`, {
+      headers: cabeceras(token, V_NUEVA),
+      cache: 'no-store',
+    })
+    if (df.ok) perfil = perfilDe(await df.json()) || perfil
+    return { ...directa, perfil }
+  }
+
+  // Notion cambio el modelo de permisos: los datos viven en "fuentes de datos"
+  // y a veces el id de la base no llega hasta ellas. Las buscamos por permiso.
+  const fuente = await buscarFuentePorPermiso(id, token)
+  if (fuente) {
+    const r = await traerTodo(
+      `https://api.notion.com/v1/data_sources/${fuente.id}/query`,
+      token,
+      V_NUEVA
+    )
+    if (!r.error) {
+      if (!perfil?.logo && !perfil?.emoji) perfil = perfilDe(fuente) || perfil
+      return { ...r, perfil }
+    }
+  }
+
   // El id es de una pagina: buscamos las bases de datos que tiene adentro.
   if (profundidad < 2) {
     const hijos = await buscarBasesAdentro(id, token)
@@ -173,12 +213,45 @@ async function consultar(id, token, profundidad = 0) {
     return {
       error:
         meta.status === 404
-          ? 'Notion no encuentra nada en ese enlace. Revisa que le hayas dado acceso a la integracion desde ••• > Conexiones.'
+          ? 'Notion no encuentra nada en ese enlace. Abre la base de datos como pagina completa, entra a ••• > Conexiones y agrega la integracion ahi mismo.'
           : msg,
       estado: meta.status,
     }
   }
   return clasica
+}
+
+// Ultimo recurso: le preguntamos a Notion que fuentes de datos tiene
+// autorizadas esta integracion y buscamos la que corresponde a esta base.
+async function buscarFuentePorPermiso(id, token) {
+  const limpio = (v) => String(v || '').replace(/-/g, '')
+  const objetivo = limpio(id)
+
+  try {
+    let cursor
+    do {
+      const res = await fetch('https://api.notion.com/v1/search', {
+        method: 'POST',
+        headers: cabeceras(token, V_NUEVA),
+        body: JSON.stringify({
+          page_size: 100,
+          start_cursor: cursor,
+          filter: { property: 'object', value: 'data_source' },
+        }),
+        cache: 'no-store',
+      })
+      if (!res.ok) return null
+      const json = await res.json()
+      for (const f of json.results) {
+        const padre = limpio(f.parent?.database_id)
+        if (limpio(f.id) === objetivo || padre === objetivo) return f
+      }
+      cursor = json.has_more ? json.next_cursor : undefined
+    } while (cursor)
+  } catch {
+    return null
+  }
+  return null
 }
 
 // Recorre los bloques de una pagina y devuelve los ids de las bases que contiene.
@@ -216,6 +289,7 @@ export async function GET(request) {
 
   const estado = searchParams.get('estado') || ''
   const cliente = searchParams.get('cliente') || ''
+  const proyecto = (searchParams.get('proyecto') || '').replace(/-/g, '')
 
   try {
     const r = await consultar(db, token)
@@ -226,12 +300,12 @@ export async function GET(request) {
       const media = filesOf(
         pick(
           props,
-          ['Imagen', 'Imagenes', 'Media', 'Archivo', 'Archivos', 'Attachment', 'Adjunto', 'Foto', 'Pieza'],
+          ['Imagen', 'Imagenes', 'Portada', 'Media', 'Archivo', 'Archivos', 'Attachment', 'Adjunto', 'Foto', 'Pieza'],
           ['files']
         )
       )
       const linkProp = pick(props, ['Link', 'URL', 'Enlace', 'Canva'], ['url'])
-      const fechaProp = pick(props, ['Fecha', 'Publicacion', 'Date', 'Fecha de publicacion'], ['date'])
+      const fechaProp = pick(props, ['Fecha Publicacion', 'Fecha', 'Publicacion', 'Date', 'Fecha de publicacion'], ['date'])
       const ordenProp = pick(props, ['Orden', 'Order', 'Posicion'], ['number'])
       const likesProp = pick(props, ['Likes', 'Me gusta'], ['number'])
 
@@ -248,10 +322,13 @@ export async function GET(request) {
         orden: ordenProp?.number ?? null,
         likes: likesProp?.number ?? null,
         media,
+        relaciones: relacionesDe(props),
         externalLink: linkProp?.url || '',
         notionUrl: page.url,
       }
     })
+
+    if (proyecto) posts = posts.filter((p) => p.relaciones.includes(proyecto))
 
     const total = posts.length
     if (estado) posts = posts.filter((p) => norm(p.estado) === norm(estado))

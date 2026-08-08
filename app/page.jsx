@@ -19,6 +19,7 @@ export default function Inicio() {
   const [bio, setBio] = useState('')
   const [avatar, setAvatar] = useState('')
   const [estado, setEstado] = useState('')
+  const [proyecto, setProyecto] = useState('')
   const [oscuro, setOscuro] = useState(true)
   const [copiado, setCopiado] = useState(false)
 
@@ -32,9 +33,11 @@ export default function Inicio() {
     if (bio) params.set('bio', bio)
     if (avatar) params.set('avatar', avatar)
     if (estado) params.set('estado', estado)
+    const idProy = sacarId(proyecto)
+    if (idProy) params.set('proyecto', idProy)
     params.set('tema', oscuro ? 'oscuro' : 'claro')
     return `${base}/g?${params}`
-  }, [db, handle, bio, avatar, estado, oscuro])
+  }, [db, handle, bio, avatar, estado, proyecto, oscuro])
 
   async function copiar() {
     try {
@@ -66,7 +69,7 @@ export default function Inicio() {
         <p className="ayuda">
           {db
             ? `Base detectada: ${db.slice(0, 8)}…`
-            : 'En Notion abre tu calendario de contenido, toca Compartir y luego Copiar enlace.'}
+            : 'Sirve el enlace de la base de datos o el de la pagina que la contiene. Si es una vista vinculada, usa el enlace de la base original.'}
         </p>
       </div>
 
@@ -114,6 +117,21 @@ export default function Inicio() {
           placeholder="Aprobado"
         />
         <p className="ayuda">Opcional. Util para enseñarle al cliente solo lo ya aprobado.</p>
+      </div>
+
+      <div className="campo">
+        <label htmlFor="proyecto">Filtrar por proyecto (opcional)</label>
+        <input
+          id="proyecto"
+          value={proyecto}
+          onChange={(e) => setProyecto(e.target.value)}
+          placeholder="https://www.notion.so/..."
+        />
+        <p className="ayuda">
+          Si tus publicaciones de varios clientes viven en una misma base y se separan con una
+          relacion, pega aqui el enlace de la pagina del proyecto. Solo apareceran las de ese
+          cliente.
+        </p>
       </div>
 
       <div className="campo">
