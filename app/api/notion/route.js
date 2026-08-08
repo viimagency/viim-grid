@@ -210,6 +210,23 @@ async function consultar(id, token, profundidad = 0) {
     }
   }
 
+  // Ultimo intento: el enlace es de un proyecto y las publicaciones
+  // viven en otra base relacionada con el.
+  if (profundidad === 0) {
+    const porRel = await buscarPorRelacion(id, token)
+    if (porRel) {
+      const pg = await fetch(`https://api.notion.com/v1/pages/${id}`, {
+        headers: cabeceras(token, V_VIEJA),
+        cache: 'no-store',
+      })
+      if (pg.ok) {
+        const p = perfilDe(await pg.json())
+        if (p?.logo || p?.emoji) perfil = p
+      }
+      return { ...porRel, perfil }
+    }
+  }
+
   if (!meta.ok) {
     const msg = await mensajeDe(meta)
     return {
@@ -225,6 +242,63 @@ async function consultar(id, token, profundidad = 0) {
 
 // Ultimo recurso: le preguntamos a Notion que fuentes de datos tiene
 // autorizadas esta integracion y buscamos la que corresponde a esta base.
+async function listarFuentes(token) {
+  const todas = []
+  try {
+    let cursor
+    do {
+      const res = await fetch('https://api.notion.com/v1/search', {
+        method: 'POST',
+        headers: cabeceras(token, V_NUEVA),
+        body: JSON.stringify({
+          page_size: 100,
+          start_cursor: cursor,
+          filter: { property: 'object', value: 'data_source' },
+        }),
+        cache: 'no-store',
+      })
+      if (!res.ok) return todas
+      const json = await res.json()
+      todas.push(...json.results)
+      cursor = json.has_more ? json.next_cursor : undefined
+    } while (cursor)
+  } catch {
+    return todas
+  }
+  return todas
+}
+
+// Si el enlace es de una pagina de proyecto, buscamos en las bases accesibles
+// cual tiene filas relacionadas con ella. Asi basta con un solo enlace.
+async function buscarPorRelacion(pageId, token) {
+  const limpio = (v) => String(v || '').replace(/-/g, '')
+  const objetivo = limpio(pageId)
+  const fuentes = await listarFuentes(token)
+
+  for (const f of fuentes.slice(0, 10)) {
+    const r = await traerTodo(
+      `https://api.notion.com/v1/data_sources/${f.id}/query`,
+      token,
+      V_NUEVA
+    )
+    if (r.error) continue
+    const propias = r.filas.filter((page) => {
+      const props = page.properties || {}
+      for (const key of Object.keys(props)) {
+        const pr = props[key]
+        if (pr.type === 'relation') {
+          for (const rel of pr.relation || []) {
+            if (limpio(rel.id) === objetivo) return true
+          }
+        }
+      }
+      return false
+    })
+    if (propias.length) return { filas: propias, yaFiltrado: true }
+  }
+  return null
+}
+
 async function buscarFuentePorPermiso(id, token) {
   const limpio = (v) => String(v || '').replace(/-/g, '')
   const objetivo = limpio(id)

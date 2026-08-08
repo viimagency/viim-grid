@@ -59,7 +59,7 @@ export default function Inicio() {
       </p>
 
       <div className="campo">
-        <label htmlFor="url">Enlace de la base de datos en Notion</label>
+        <label htmlFor="url">Enlace de tu calendario en Notion</label>
         <input
           id="url"
           value={url}
@@ -69,7 +69,7 @@ export default function Inicio() {
         <p className="ayuda">
           {db
             ? `Base detectada: ${db.slice(0, 8)}…`
-            : 'Sirve el enlace de la base de datos o el de la pagina que la contiene. Si es una vista vinculada, usa el enlace de la base original.'}
+            : 'Abre tu calendario de contenido en Notion, toca Compartir y luego Copiar enlace.'}
         </p>
       </div>
 
@@ -120,7 +120,7 @@ export default function Inicio() {
       </div>
 
       <div className="campo">
-        <label htmlFor="proyecto">Filtrar por proyecto (opcional)</label>
+        <label htmlFor="proyecto">Filtrar por proyecto (casi nunca hace falta)</label>
         <input
           id="proyecto"
           value={proyecto}
@@ -128,9 +128,8 @@ export default function Inicio() {
           placeholder="https://www.notion.so/..."
         />
         <p className="ayuda">
-          Si tus publicaciones de varios clientes viven en una misma base y se separan con una
-          relacion, pega aqui el enlace de la pagina del proyecto. Solo apareceran las de ese
-          cliente.
+          Dejalo vacio. Solo sirve si arriba pusiste una base compartida por varios clientes y
+          quieres separarlos manualmente.
         </p>
       </div>
 
