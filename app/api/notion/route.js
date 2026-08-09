@@ -71,6 +71,8 @@ function perfilDe(obj) {
   if (icon?.type === 'emoji') emoji = icon.emoji
   else if (icon?.type === 'external') logo = icon.external?.url || null
   else if (icon?.type === 'file') logo = icon.file?.url || null
+  else if (icon?.type === 'custom_emoji') logo = icon.custom_emoji?.url || null
+  else if (icon?.type === 'file_upload') logo = icon.file_upload?.url || null
   // Notion usa rutas internas para sus iconos de plantilla; no sirven como logo.
   if (logo && !/^https?:\/\//.test(logo)) logo = null
 

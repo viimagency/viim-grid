@@ -51,6 +51,8 @@ export default function Grid({ config }) {
   const [avatarRoto, setAvatarRoto] = useState(false)
   const [info, setInfo] = useState({ total: 0, conImagen: 0 })
   const [perfilNotion, setPerfilNotion] = useState(null)
+  const [subiendo, setSubiendo] = useState(null)
+  const [sobreArchivo, setSobreArchivo] = useState(null)
   const [ratio, setRatio] = useState('4-5')
   const [reordenar, setReordenar] = useState(false)
   const [guardado, setGuardado] = useState('')
@@ -142,6 +144,28 @@ export default function Grid({ config }) {
     }
   }
 
+  async function subirImagen(post, archivo) {
+    if (!archivo || !archivo.type?.startsWith('image/')) {
+      setError('Solo se pueden soltar imagenes.')
+      return
+    }
+    setSubiendo(post.id)
+    setError(null)
+    try {
+      const cuerpo = new FormData()
+      cuerpo.append('archivo', archivo)
+      cuerpo.append('pageId', post.id)
+      const res = await fetch('/api/notion/upload', { method: 'POST', body: cuerpo })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'No se pudo subir.')
+      await cargar()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSubiendo(null)
+    }
+  }
+
   function soltar(destino) {
     const origen = arrastrado.current
     setSobre(null)
@@ -217,7 +241,9 @@ export default function Grid({ config }) {
             ? 'Guardando orden'
             : guardado === 'listo'
             ? 'Orden guardado'
-            : `${visibles.length} publicaciones`}
+            : subiendo
+            ? 'Subiendo imagen'
+            : `${visibles.length} publicaciones · arrastra imagenes a la grilla`}
         </span>
       </div>
 
@@ -283,7 +309,8 @@ export default function Grid({ config }) {
                 className={`celda${primera ? '' : ' celda-vacia'}`}
                 data-formato={ratio}
                 data-arrastrando={origenVisual === i}
-                data-destino={sobre === i}
+                data-destino={sobre === i || sobreArchivo === i}
+                data-subiendo={subiendo === p.id}
                 draggable={reordenar}
                 onDragStart={() => {
                   arrastrado.current = i
@@ -294,13 +321,24 @@ export default function Grid({ config }) {
                   setSobre(null)
                 }}
                 onDragOver={(e) => {
-                  if (!reordenar) return
+                  const traeArchivo = Array.from(e.dataTransfer?.types || []).includes('Files')
+                  if (!reordenar && !traeArchivo) return
                   e.preventDefault()
-                  setSobre(i)
+                  if (traeArchivo) setSobreArchivo(i)
+                  else setSobre(i)
                 }}
-                onDragLeave={() => setSobre((s) => (s === i ? null : s))}
+                onDragLeave={() => {
+                  setSobre((s) => (s === i ? null : s))
+                  setSobreArchivo((s) => (s === i ? null : s))
+                }}
                 onDrop={(e) => {
                   e.preventDefault()
+                  setSobreArchivo(null)
+                  const archivo = e.dataTransfer?.files?.[0]
+                  if (archivo) {
+                    subirImagen(p, archivo)
+                    return
+                  }
                   soltar(i)
                 }}
                 onClick={() => {
@@ -310,6 +348,7 @@ export default function Grid({ config }) {
                 }}
               >
                 {primera ? <Media item={primera} /> : <span>{p.titulo || 'Sin imagen'}</span>}
+                {subiendo === p.id && <span className="subiendo">Subiendo</span>}
                 {esCarrusel(p) && <IconoCarrusel />}
                 {!esCarrusel(p) && esReel(p) && <IconoReel />}
               </button>
