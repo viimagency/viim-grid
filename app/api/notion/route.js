@@ -332,6 +332,35 @@ async function buscarFuentePorPermiso(id, token) {
   return null
 }
 
+// Busca paginas cuyo titulo contenga un texto. Sirve para agrupar por marca:
+// "Asistir" encuentra Julio 2026 | Asistir, Agosto 2026 | Asistir, etc.
+async function paginasPorTexto(texto, token) {
+  const ids = new Set()
+  try {
+    let cursor
+    do {
+      const res = await fetch('https://api.notion.com/v1/search', {
+        method: 'POST',
+        headers: cabeceras(token, V_VIEJA),
+        body: JSON.stringify({
+          query: texto,
+          page_size: 100,
+          start_cursor: cursor,
+          filter: { property: 'object', value: 'page' },
+        }),
+        cache: 'no-store',
+      })
+      if (!res.ok) return ids
+      const json = await res.json()
+      for (const p of json.results) ids.add(String(p.id).replace(/-/g, ''))
+      cursor = json.has_more ? json.next_cursor : undefined
+    } while (cursor)
+  } catch {
+    return ids
+  }
+  return ids
+}
+
 // Recorre los bloques de una pagina y devuelve los ids de las bases que contiene.
 async function buscarBasesAdentro(id, token) {
   const encontradas = []
@@ -368,6 +397,7 @@ export async function GET(request) {
   const estado = searchParams.get('estado') || ''
   const cliente = searchParams.get('cliente') || ''
   const proyecto = (searchParams.get('proyecto') || '').replace(/-/g, '')
+  const marca = (searchParams.get('marca') || '').trim()
 
   try {
     const r = await consultar(db, token)
@@ -407,6 +437,14 @@ export async function GET(request) {
     })
 
     if (proyecto) posts = posts.filter((p) => p.relaciones.includes(proyecto))
+
+    // Filtro por marca: agrupa todos los proyectos de un mismo cliente.
+    if (marca) {
+      const delCliente = await paginasPorTexto(marca, token)
+      if (delCliente.size) {
+        posts = posts.filter((p) => p.relaciones.some((r) => delCliente.has(r)))
+      }
+    }
 
     // El logo del cliente sale del icono de la pagina del proyecto.
     let perfil = r.perfil || null

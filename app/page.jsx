@@ -33,6 +33,7 @@ export default function Inicio() {
   const [avatar, setAvatar] = useState('')
   const [estado, setEstado] = useState('')
   const [proyecto, setProyecto] = useState('')
+  const [marca, setMarca] = useState('')
   const [oscuro, setOscuro] = useState(true)
   const [copiado, setCopiado] = useState(false)
   const [host, setHost] = useState('')
@@ -56,9 +57,10 @@ export default function Inicio() {
     if (estado) params.set('estado', estado)
     const idProy = sacarId(proyecto)
     if (idProy) params.set('proyecto', idProy)
+    if (marca.trim()) params.set('marca', marca.trim())
     params.set('tema', oscuro ? 'oscuro' : 'claro')
     return `${base}/g?${params}`
-  }, [db, handle, bio, avatar, estado, proyecto, oscuro])
+  }, [db, handle, bio, avatar, estado, proyecto, marca, oscuro])
 
   async function copiar() {
     try {
@@ -156,7 +158,21 @@ export default function Inicio() {
       </div>
 
       <div className="campo">
-        <label htmlFor="proyecto">Filtrar por proyecto (casi nunca hace falta)</label>
+        <label htmlFor="marca">Filtrar por marca (opcional)</label>
+        <input
+          id="marca"
+          value={marca}
+          onChange={(e) => setMarca(e.target.value)}
+          placeholder="Asistir"
+        />
+        <p className="ayuda">
+          Si organizas el trabajo por proyectos mensuales, escribe aqui el nombre del cliente. El
+          feed junta todos sus meses y el enlace te sirve para siempre, sin regenerarlo.
+        </p>
+      </div>
+
+      <div className="campo">
+        <label htmlFor="proyecto">Filtrar por un proyecto puntual (opcional)</label>
         <input
           id="proyecto"
           value={proyecto}
