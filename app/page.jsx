@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 function sacarId(texto) {
   if (!texto) return ''
@@ -13,6 +13,19 @@ function sacarId(texto) {
   return conGuiones ? conGuiones[0].replace(/-/g, '') : ''
 }
 
+// Vercel crea una direccion distinta por cada despliegue, con un codigo en medio.
+// Esas quedan congeladas en una version vieja. Detectamos ese caso.
+function esCongelada(host) {
+  return /-[a-z0-9]{7,}-/.test(host) && host.endsWith('.vercel.app')
+}
+
+function origenBueno(host) {
+  const partes = host.replace('.vercel.app', '').split('-')
+  const i = partes.findIndex((p) => /^[a-z0-9]{7,}$/.test(p) && /\d/.test(p))
+  if (i <= 0) return null
+  return `https://${partes.slice(0, i).join('-')}.vercel.app`
+}
+
 export default function Inicio() {
   const [url, setUrl] = useState('')
   const [handle, setHandle] = useState('')
@@ -22,6 +35,14 @@ export default function Inicio() {
   const [proyecto, setProyecto] = useState('')
   const [oscuro, setOscuro] = useState(true)
   const [copiado, setCopiado] = useState(false)
+  const [host, setHost] = useState('')
+
+  useEffect(() => {
+    setHost(window.location.host)
+  }, [])
+
+  const congelada = host && esCongelada(host)
+  const sugerida = congelada ? origenBueno(host) : null
 
   const db = useMemo(() => sacarId(url), [url])
 
@@ -51,6 +72,21 @@ export default function Inicio() {
 
   return (
     <main className="setup">
+      {congelada && (
+        <div className="aviso" style={{ marginBottom: 28, marginTop: 0 }}>
+          <h3>Estas en una direccion congelada</h3>
+          <p>
+            Esta copia quedo fija en una version vieja y los enlaces que genere aqui nunca se van a
+            actualizar. Abre la direccion de produccion y genera el enlace alli.
+          </p>
+          {sugerida && (
+            <a className="btn" href={sugerida}>
+              Ir a la direccion correcta
+            </a>
+          )}
+        </div>
+      )}
+
       <p className="eyebrow">VIIM · Agencia Creativa</p>
       <h1>Arma el feed de un cliente</h1>
       <p className="intro">
